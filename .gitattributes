@@ -1,0 +1,5 @@
+# Все текстовые файлы хранятся с LF: иначе sh-скрипты ломаются внутри Docker
+* text=auto eol=lf
+*.pdf binary
+*.docx binary
+*.png binary
