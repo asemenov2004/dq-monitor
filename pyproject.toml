@@ -14,6 +14,7 @@ dependencies = [
     "sqlalchemy>=2.0",
     "psycopg[binary]>=3.2",
     "pydantic-settings>=2.4",
+    "alembic>=1.13",
 ]
 
 [project.optional-dependencies]
@@ -29,6 +30,10 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
+# Шаблон миграций не .py-файл, без этой строки он не попадёт в установленный пакет
+[tool.setuptools.package-data]
+"dq_monitor.meta" = ["migrations/script.py.mako"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
@@ -38,3 +43,7 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Миграции генерирует Alembic: длинные строки DDL и его стиль аннотаций не правим
+"src/dq_monitor/meta/migrations/versions/*" = ["E501", "UP", "W291"]

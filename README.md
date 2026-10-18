@@ -27,7 +27,12 @@ pip install -e ".[dev,stand]"
 
 # 4. Проверить подключение к базам
 python -m dq_monitor ping
+
+# 5. Создать таблицы базы метаданных (миграции Alembic)
+alembic upgrade head
 ```
+
+Модель данных базы метаданных: [docs/erd.md](docs/erd.md).
 
 ## Полигон TPC-H
 
@@ -40,6 +45,7 @@ python -m dq_stand init            # генерация TPC-H и создани�
 python -m dq_stand load --days 30  # 30 циклов загрузки
 python -m dq_stand status          # модельное время, число партий, отставание
 python -m dq_stand reset           # очистить факты и вернуть часы в начало
+python -m dq_stand register        # зарегистрировать таблицы dwh в базе метаданных
 ```
 
 Масштаб данных и начальная дата задаются в `.env` (`STAND_SCALE_FACTOR`, `STAND_START_DATE`).

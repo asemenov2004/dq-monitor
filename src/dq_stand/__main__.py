@@ -7,10 +7,12 @@ import time
 from sqlalchemy import inspect
 from sqlalchemy.exc import OperationalError
 
-from dq_monitor.db import warehouse_engine
+from dq_monitor.config import get_settings
+from dq_monitor.db import meta_engine, warehouse_engine
 from dq_stand.config import get_stand_settings
 from dq_stand.generate import generate_src
 from dq_stand.loader import create_dwh, get_status, reset, run_cycles
+from dq_stand.register import register_tpch
 
 
 def cmd_init(force: bool) -> int:
@@ -55,6 +57,12 @@ def cmd_reset() -> int:
     return 0
 
 
+def cmd_register() -> int:
+    added, existed = register_tpch(meta_engine(), get_settings())
+    print(f"Датасеты в базе метаданных: добавлено {added}, уже было {existed}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="dq_stand", description="Полигон TPC-H для dq-monitor")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -67,13 +75,14 @@ def main() -> int:
 
     sub.add_parser("status", help="состояние полигона")
     sub.add_parser("reset", help="очистить факты и вернуть часы в начало")
+    sub.add_parser("register", help="зарегистрировать таблицы dwh в базе метаданных dq-monitor")
 
     args = parser.parse_args()
     try:
         return run(args)
     except OperationalError as exc:
         first_line = str(exc.orig).splitlines()[0]
-        print(f"Нет подключения к хранилищу: {first_line}", file=sys.stderr)
+        print(f"Нет подключения к базе: {first_line}", file=sys.stderr)
         print("Проверьте, что PostgreSQL запущен: docker compose up -d", file=sys.stderr)
         return 1
 
@@ -87,6 +96,8 @@ def run(args: argparse.Namespace) -> int:
         return cmd_status()
     if args.command == "reset":
         return cmd_reset()
+    if args.command == "register":
+        return cmd_register()
     return 1
 
 
