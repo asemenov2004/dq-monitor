@@ -68,6 +68,7 @@ def format_run(report: RunReport) -> str:
 def summary_line(report: RunReport) -> str:
     return (
         f"Итого: pass {report.count('pass')}, fail {report.count('fail')}, "
-        f"error {report.count('error')}; инциденты: открыто {report.incidents('opened')}, "
+        f"error {report.count('error')}, skip {report.count('skip')}; "
+        f"инциденты: открыто {report.incidents('opened')}, "
         f"закрыто {report.incidents('closed')}; время {report.duration_sec:.2f} с"
     )

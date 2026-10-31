@@ -1,0 +1,20 @@
+# Отдельные проверки: набор правил tpch.yaml не меняется.
+# Первые 30 модельных дней накапливают историю (SKIP), оценка начинается с 31-го.
+connection: tpch_warehouse
+checks:
+  - name: orders_volume_anomaly
+    dataset: dwh.orders
+    type: anomaly
+    params: {metric: row_count, window: 30, threshold: 3}
+  - name: lineitem_volume_anomaly
+    dataset: dwh.lineitem
+    type: anomaly
+    params: {metric: row_count, window: 30, threshold: 3}
+  - name: orders_price_mean_anomaly
+    dataset: dwh.orders
+    type: anomaly
+    params: {metric: mean, column: o_totalprice, window: 30, threshold: 3}
+  - name: orders_null_ratio_anomaly
+    dataset: dwh.orders
+    type: anomaly
+    params: {metric: null_ratio, column: o_custkey, window: 30, threshold: 3}

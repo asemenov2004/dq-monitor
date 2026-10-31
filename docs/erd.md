@@ -1,6 +1,6 @@
 # Модель данных базы метаданных
 
-Схема соответствует миграции `20261013_1ac1478a8e17_initial_schema`.
+Схема соответствует миграции `20261031_b2e4a6c8d010_anomaly_detection`.
 Во всех таблицах заданы первичные и внешние ключи; внешние ключи с `ON DELETE RESTRICT`,
 поэтому удалить запись, на которую ссылается история, невозможно.
 
@@ -39,7 +39,7 @@ erDiagram
         int id PK
         int dataset_id FK
         varchar name
-        varchar check_type "7 типов"
+        varchar check_type "7 правил и anomaly"
         jsonb params
         varchar severity "warning или critical"
         varchar schedule "cron, пусто означает каждый прогон"
@@ -59,12 +59,14 @@ erDiagram
         bigint id PK
         bigint run_id FK
         int check_id FK
-        varchar status "pass, fail или error"
+        varchar status "pass, fail, error или skip"
         numeric observed_value
         numeric expected_low
         numeric expected_high
         text message
         int duration_ms
+        varchar config_hash "SHA-256 версии параметров и источника"
+        jsonb details "диагностика детектора"
     }
     incident {
         int id PK

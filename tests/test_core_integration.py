@@ -251,7 +251,7 @@ def test_report_text_lists_problems(fresh):
     assert "[FAIL] orders_status_values: Значения o_orderstatus вне правила (из {F, O, P})" in (
         text_report
     )
-    assert f"pass {ALL_CHECKS - 1}, fail 1, error 0; инциденты: открыто 1" in text_report
+    assert f"pass {ALL_CHECKS - 1}, fail 1, error 0, skip 0; инциденты: открыто 1" in text_report
 
 
 @pytest.mark.parametrize("defect", sorted(DEFECTS))

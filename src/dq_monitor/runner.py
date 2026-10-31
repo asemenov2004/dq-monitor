@@ -20,7 +20,8 @@ from time import perf_counter
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session, joinedload
 
-from dq_monitor.checks import ERROR, FAIL, PASS, CheckContext, Outcome, create_check
+from dq_monitor.anomalies.history import fingerprint, load_history
+from dq_monitor.checks import ERROR, FAIL, PASS, SKIP, CheckContext, Outcome, create_check
 from dq_monitor.config import get_settings
 from dq_monitor.connectors import Connector, connector_for
 from dq_monitor.errors import error_text
@@ -59,8 +60,8 @@ class RunReport:
 
     @property
     def ok(self) -> bool:
-        """Все проверки прошли: нет ни нарушений, ни ошибок выполнения."""
-        return all(item.outcome.status == PASS for item in self.items)
+        """Нет нарушений и ошибок. Пропуски отдельно видны в отчёте и не ломают разогрев."""
+        return all(item.outcome.status in (PASS, SKIP) for item in self.items)
 
     @property
     def duration_sec(self) -> float:
@@ -103,7 +104,9 @@ def run_checks(
 
         try:
             for check in checks:
-                outcome, duration_ms = _execute(check, connectors, timeout, logical_now)
+                outcome, duration_ms, config_hash = _execute(
+                    check, connectors, timeout, logical_now, session, run.id
+                )
                 result = CheckResult(
                     run_id=run.id,
                     check_id=check.id,
@@ -113,6 +116,8 @@ def run_checks(
                     expected_high=outcome.expected_high,
                     message=outcome.message[:MAX_MESSAGE_LENGTH],
                     duration_ms=duration_ms,
+                    config_hash=config_hash,
+                    details=outcome.details,
                 )
                 session.add(result)
                 session.flush()  # нужен id результата для инцидента
@@ -143,13 +148,25 @@ def run_checks(
 
 
 def _execute(
-    check: DqCheck, connectors: dict[int, Connector], timeout: int, logical_now: datetime
-) -> tuple[Outcome, int]:
+    check: DqCheck,
+    connectors: dict[int, Connector],
+    timeout: int,
+    logical_now: datetime,
+    session: Session,
+    run_id: int,
+) -> tuple[Outcome, int, str | None]:
     """Выполняет одну проверку. Любая ошибка превращается в итог со статусом error."""
     started = perf_counter()
+    config_hash = None
     try:
         implementation = create_check(check.check_type, check.params)
         dataset = check.dataset
+        config_hash = fingerprint(check, implementation)
+        history = ()
+        if implementation.history_limit:
+            history = load_history(
+                session, check.id, config_hash, logical_now, run_id, implementation.history_limit
+            )
         connector = connectors.get(dataset.connection_id)
         if connector is None:
             connector = connector_for(dataset.connection, timeout)
@@ -161,11 +178,12 @@ def _execute(
             batch_column=dataset.batch_column,
             loaded_at_column=dataset.loaded_at_column,
             logical_now=logical_now,
+            history=history,
         )
         outcome = implementation.run(ctx)
     except Exception as exc:  # граница проверки: ошибка одной проверки не роняет прогон
         outcome = Outcome(ERROR, message=error_text(exc))
-    return outcome, round((perf_counter() - started) * 1000)
+    return outcome, round((perf_counter() - started) * 1000), config_hash
 
 
 def update_incident(

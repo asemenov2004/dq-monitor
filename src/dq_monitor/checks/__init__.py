@@ -1,8 +1,9 @@
-"""Ядро проверок качества данных: семь типов проверок и реестр «тип → класс»."""
+"""Ядро проверок качества данных: правила, аномалии и реестр «тип → класс»."""
 
 from typing import Any
 
-from dq_monitor.checks.base import ERROR, FAIL, PASS, Check, CheckContext, Outcome, Query
+from dq_monitor.checks.anomaly import AnomalyCheck
+from dq_monitor.checks.base import ERROR, FAIL, PASS, SKIP, Check, CheckContext, Outcome, Query
 from dq_monitor.checks.custom_sql import CustomSqlCheck
 from dq_monitor.checks.freshness import FreshnessCheck
 from dq_monitor.checks.not_null import NotNullCheck
@@ -21,6 +22,7 @@ CHECK_CLASSES: dict[str, type[Check]] = {
         RangeCheck,
         ReferentialCheck,
         CustomSqlCheck,
+        AnomalyCheck,
     )
 }
 
@@ -29,6 +31,7 @@ __all__ = [
     "ERROR",
     "FAIL",
     "PASS",
+    "SKIP",
     "Check",
     "CheckContext",
     "Outcome",
