@@ -1,7 +1,9 @@
 """Настройки приложения. Читаются из переменных окружения и файла .env."""
 
+import os
 from functools import lru_cache
 
+from dotenv import dotenv_values
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
 
@@ -19,6 +21,9 @@ class Settings(BaseSettings):
 
     warehouse_db: str = "warehouse"
     meta_db: str = "meta"
+
+    # Предельное время одного запроса проверки: тяжёлый или зависший запрос не подвесит прогон
+    check_statement_timeout_sec: int = 60
 
     def _url(self, database: str) -> URL:
         # URL.create сам экранирует спецсимволы в пароле
@@ -43,3 +48,15 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def get_secret(name: str) -> str:
+    """Значение секрета по имени переменной: сначала из окружения, затем из файла .env.
+
+    pydantic-settings читает .env только в поля Settings и не кладёт его в окружение,
+    поэтому произвольные переменные (например, пароль из connection.password_env) ищем сами.
+    """
+    value = os.environ.get(name) or dotenv_values(".env").get(name)
+    if not value:
+        raise LookupError(f"Не задана переменная окружения {name}")
+    return value
