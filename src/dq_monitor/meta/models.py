@@ -34,10 +34,11 @@ CHECK_TYPES = (
     "range",
     "referential",
     "custom_sql",
+    "anomaly",
 )
 SEVERITIES = ("warning", "critical")
 RUN_TRIGGERS = ("manual", "schedule")
-RESULT_STATUSES = ("pass", "fail", "error")
+RESULT_STATUSES = ("pass", "fail", "error", "skip")
 INCIDENT_STATES = ("open", "closed")
 NOTIFICATION_CHANNELS = ("telegram",)
 NOTIFICATION_EVENTS = ("opened", "closed")
@@ -99,7 +100,7 @@ class Dataset(Base):
     connection_id: Mapped[int] = mapped_column(ForeignKey("connection.id", ondelete="RESTRICT"))
     schema_name: Mapped[str] = mapped_column(String(100))
     table_name: Mapped[str] = mapped_column(String(100))
-    # Столбец партии: проверки считаются по последней партии, а не по всей таблице
+    # Столбец партии: проверки считаются по ожидаемой партии, а не по всей таблице
     batch_column: Mapped[str | None] = mapped_column(String(100))
     # Столбец времени загрузки: по нему проверяется свежесть
     loaded_at_column: Mapped[str | None] = mapped_column(String(100))
@@ -177,6 +178,9 @@ class CheckResult(Base):
     expected_high: Mapped[Decimal | None] = mapped_column(Numeric)
     message: Mapped[str | None] = mapped_column(Text)
     duration_ms: Mapped[int | None]
+    # У старых результатов версии нет: они не используются для обучения детектора
+    config_hash: Mapped[str | None] = mapped_column(String(64))
+    details: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
 
     run: Mapped[Run] = relationship(back_populates="results")
     check: Mapped[DqCheck] = relationship(back_populates="results")

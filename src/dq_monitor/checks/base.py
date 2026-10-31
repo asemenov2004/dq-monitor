@@ -20,6 +20,7 @@ from dq_monitor.connectors.base import Connector
 PASS = "pass"
 FAIL = "fail"
 ERROR = "error"
+SKIP = "skip"
 
 
 def to_naive_utc(moment: datetime) -> datetime:
@@ -44,6 +45,7 @@ class CheckContext:
     batch_column: str | None
     loaded_at_column: str | None
     logical_now: datetime
+    history: tuple[float, ...] = ()
 
     @property
     def batch_date(self) -> date:
@@ -74,6 +76,7 @@ class Outcome:
     expected_low: float | None = None
     expected_high: float | None = None
     message: str = ""
+    details: dict[str, Any] = field(default_factory=dict)
 
 
 class CheckParams(BaseModel):
@@ -90,6 +93,11 @@ class Check(ABC):
 
     type_name: ClassVar[str]
     Params: ClassVar[type[CheckParams]] = CheckParams
+
+    @property
+    def history_limit(self) -> int:
+        """Число предыдущих дней, нужных для оценки. Обычным правилам история не нужна."""
+        return 0
 
     def __init__(self, params: dict[str, Any]) -> None:
         self.params = self.Params.model_validate(params)

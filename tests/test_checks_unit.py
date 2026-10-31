@@ -67,6 +67,7 @@ def test_typo_in_params_rejected(check_type):
         "range": {"column": "a", "min": 0},
         "referential": {"column": "a", "ref_table": "s.t", "ref_column": "b"},
         "custom_sql": {"sql": "SELECT 0"},
+        "anomaly": {"metric": "row_count"},
     }[check_type]
     create_check(check_type, valid)  # корректные параметры принимаются
     with pytest.raises(ValidationError):
