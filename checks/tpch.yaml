@@ -1,0 +1,144 @@
+# Набор проверок полигона TPC-H (SF 1).
+# Загрузка: python -m dq_monitor checks load checks/tpch.yaml
+#
+# Пороги выбраны по профилю данных SF 1 (src, все 2406 дней):
+#   заказов в день от 534 до 702 (среднее 623), строк lineitem в день от 2082 до 2826 (среднее 2494);
+#   o_totalprice от 857.71 до 555285.16; l_discount от 0 до 0.10; l_quantity от 1 до 50;
+#   l_tax от 0 до 0.08; o_orderstatus F, O, P; l_returnflag A, N, R; l_linestatus F, O;
+#   дата отгрузки всегда позже даты заказа.
+# Партия загружается раз в модельные сутки, поэтому допустимый возраст данных 26 часов (сутки + запас).
+#
+# Важно для эксперимента: пороги фиксируются до его начала и потом не меняются.
+
+connection: tpch_warehouse
+
+checks:
+  # ---------- orders: факт, проверяется ожидаемая партия ----------
+  - name: orders_row_count
+    dataset: dwh.orders
+    type: row_count
+    description: Заказов за день в обычном диапазоне
+    params: {min: 450, max: 800}
+
+  - name: orders_freshness
+    dataset: dwh.orders
+    type: freshness
+    description: Заказы загружались не позже суток назад
+    params: {max_age_hours: 26}
+
+  - name: orders_pk_unique
+    dataset: dwh.orders
+    type: unique
+    description: Номер заказа не повторяется
+    params: {columns: [o_orderkey]}
+
+  - name: orders_custkey_not_null
+    dataset: dwh.orders
+    type: not_null
+    params: {column: o_custkey}
+
+  - name: orders_totalprice_not_null
+    dataset: dwh.orders
+    type: not_null
+    params: {column: o_totalprice}
+
+  - name: orders_totalprice_range
+    dataset: dwh.orders
+    type: range
+    description: Сумма заказа положительна и не больше 600 000
+    params: {column: o_totalprice, min: 0.01, max: 600000}
+
+  - name: orders_status_values
+    dataset: dwh.orders
+    type: range
+    params: {column: o_orderstatus, values: [F, O, P]}
+
+  - name: orders_customer_fk
+    dataset: dwh.orders
+    type: referential
+    description: У каждого заказа существует клиент
+    params: {column: o_custkey, ref_table: dwh.customer, ref_column: c_custkey}
+
+  - name: orders_date_matches_batch
+    dataset: dwh.orders
+    type: custom_sql
+    description: Дата заказа совпадает с партией, в которую он загружен
+    params:
+      sql: >
+        SELECT COUNT(*) FROM dwh.orders
+        WHERE batch_date = :batch_date AND o_orderdate <> batch_date
+
+  # ---------- lineitem: факт, проверяется ожидаемая партия ----------
+  - name: lineitem_row_count
+    dataset: dwh.lineitem
+    type: row_count
+    params: {min: 1700, max: 3300}
+
+  - name: lineitem_freshness
+    dataset: dwh.lineitem
+    type: freshness
+    params: {max_age_hours: 26}
+
+  - name: lineitem_pk_unique
+    dataset: dwh.lineitem
+    type: unique
+    description: Пара (заказ, номер строки) не повторяется
+    params: {columns: [l_orderkey, l_linenumber]}
+
+  - name: lineitem_orderkey_not_null
+    dataset: dwh.lineitem
+    type: not_null
+    params: {column: l_orderkey}
+
+  - name: lineitem_quantity_range
+    dataset: dwh.lineitem
+    type: range
+    params: {column: l_quantity, min: 1, max: 50}
+
+  - name: lineitem_discount_range
+    dataset: dwh.lineitem
+    type: range
+    params: {column: l_discount, min: 0, max: 0.1}
+
+  - name: lineitem_extendedprice_range
+    dataset: dwh.lineitem
+    type: range
+    params: {column: l_extendedprice, min: 0.01}
+
+  - name: lineitem_returnflag_values
+    dataset: dwh.lineitem
+    type: range
+    params: {column: l_returnflag, values: [A, N, R]}
+
+  - name: lineitem_order_fk
+    dataset: dwh.lineitem
+    type: referential
+    description: У каждой строки существует заказ
+    params: {column: l_orderkey, ref_table: dwh.orders, ref_column: o_orderkey}
+
+  - name: lineitem_ship_after_order
+    dataset: dwh.lineitem
+    type: custom_sql
+    description: Отгрузка не раньше даты заказа
+    params:
+      sql: >
+        SELECT COUNT(*) FROM dwh.lineitem l
+        JOIN dwh.orders o ON o.o_orderkey = l.l_orderkey
+        WHERE l.batch_date = :batch_date AND l.l_shipdate <= o.o_orderdate
+
+  # ---------- справочники: проверяется вся таблица ----------
+  - name: customer_pk_unique
+    dataset: dwh.customer
+    type: unique
+    params: {columns: [c_custkey]}
+
+  - name: customer_nation_fk
+    dataset: dwh.customer
+    type: referential
+    params: {column: c_nationkey, ref_table: dwh.nation, ref_column: n_nationkey}
+
+  - name: nation_row_count
+    dataset: dwh.nation
+    type: row_count
+    description: В TPC-H ровно 25 стран
+    params: {min: 25, max: 25}

@@ -9,6 +9,8 @@ from sqlalchemy.exc import OperationalError
 
 from dq_monitor.config import get_settings
 from dq_monitor.db import meta_engine, warehouse_engine
+from dq_monitor.report import format_run, summary_line
+from dq_monitor.runner import run_checks
 from dq_stand.config import get_stand_settings
 from dq_stand.generate import generate_src
 from dq_stand.loader import create_dwh, get_status, reset, run_cycles
@@ -57,6 +59,28 @@ def cmd_reset() -> int:
     return 0
 
 
+def cmd_cycle(days: int, verbose: bool) -> int:
+    """Цикл эксперимента: загрузить партию и сразу прогнать проверки на модельное время.
+
+    Ядро не знает о модельных часах: время ему сообщает полигон.
+    """
+    warehouse, meta = warehouse_engine(), meta_engine()
+    all_ok = True
+    for _ in range(days):
+        batches = run_cycles(warehouse, 1, log=lambda _: None)
+        if not batches:
+            print("Данные в src закончились, циклы остановлены")
+            break
+        batch = batches[0]
+        report = run_checks(meta, batch.loaded_at, trigger="schedule")
+        all_ok = all_ok and report.ok
+        if verbose:
+            print(format_run(report), end="\n\n")
+        else:
+            print(f"{batch.batch_date}: {summary_line(report)}")
+    return 0 if all_ok else 1
+
+
 def cmd_register() -> int:
     added, existed = register_tpch(meta_engine(), get_settings())
     print(f"Датасеты в базе метаданных: добавлено {added}, уже было {existed}")
@@ -76,6 +100,10 @@ def main() -> int:
     sub.add_parser("status", help="состояние полигона")
     sub.add_parser("reset", help="очистить факты и вернуть часы в начало")
     sub.add_parser("register", help="зарегистрировать таблицы dwh в базе метаданных dq-monitor")
+
+    p_cycle = sub.add_parser("cycle", help="циклы «загрузка партии + прогон проверок»")
+    p_cycle.add_argument("--days", type=int, default=1, help="сколько циклов (по умолчанию 1)")
+    p_cycle.add_argument("--verbose", action="store_true", help="полный отчёт каждого прогона")
 
     args = parser.parse_args()
     try:
@@ -98,6 +126,8 @@ def run(args: argparse.Namespace) -> int:
         return cmd_reset()
     if args.command == "register":
         return cmd_register()
+    if args.command == "cycle":
+        return cmd_cycle(args.days, args.verbose)
     return 1
 
 
