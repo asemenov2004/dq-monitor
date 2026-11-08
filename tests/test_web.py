@@ -1,6 +1,7 @@
 """Формы UI, настоящее ядро, история, XSS/CSRF и независимость запросов на временной БД."""
 
 import re
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import create_engine, func, select, text
@@ -16,7 +17,7 @@ from dq_monitor.meta.migrate import upgrade  # noqa: E402
 from dq_monitor.meta.models import CheckResult, Connection, Dataset, DqCheck, Incident  # noqa: E402
 from dq_monitor.web.app import create_app  # noqa: E402
 
-TEST_DB = "dq_web_test"
+TEST_DB = f"dq_web_test_{uuid4().hex[:12]}"
 NOW = "2025-01-04T02:00"
 
 
@@ -290,3 +291,22 @@ def test_notification_journal(client, web_engine):
     assert client.get("/notifications?status=sent").status_code == 200
     assert client.get("/notifications?status=bad").status_code == 400
     assert client.get("/notifications?page_number=0").status_code == 422
+
+
+def test_demo_prepare_restores_edited_rule(client, web_engine, monkeypatch):
+    from pathlib import Path
+
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / "scripts"))
+    from demo import prepare
+
+    settings = get_settings().model_copy(update={"warehouse_db": TEST_DB, "meta_db": TEST_DB})
+    prepare(settings)
+    with Session(web_engine) as s, s.begin():
+        check = s.scalar(select(DqCheck).where(DqCheck.name == "demo_amount_not_null"))
+        check.is_active = False
+        check.params = {"scope": "table", "column": "amount", "max_null_ratio": 1}
+    prepare(settings)
+    with Session(web_engine) as s:
+        check = s.scalar(select(DqCheck).where(DqCheck.name == "demo_amount_not_null"))
+        assert check.is_active and check.params["max_null_ratio"] == 0
+        assert s.scalar(text("SELECT count(*) FROM dq_demo.orders")) == 10

@@ -63,15 +63,21 @@ def prepare(settings):
                 select(DqCheck).where(DqCheck.dataset_id == dataset.id, DqCheck.name == NAME)
             )
             if check is None:
-                s.add(
-                    DqCheck(
-                        dataset_id=dataset.id,
-                        name=NAME,
-                        check_type="not_null",
-                        params={"scope": "table", "column": "amount", "max_null_ratio": 0},
-                        description="Демонстрация: 10 заказов, порча двух amount, восстановление",
-                    )
+                check = DqCheck(
+                    dataset_id=dataset.id,
+                    name=NAME,
+                    check_type="not_null",
+                    params={"scope": "table", "column": "amount", "max_null_ratio": 0},
+                    description="Демонстрация: 10 заказов, порча двух amount, восстановление",
                 )
+                s.add(check)
+            # Prepare возвращает собственный демонстрационный сценарий к исходным
+            # настройкам, включая случай, когда правило меняли или выключали в UI.
+            check.check_type = "not_null"
+            check.params = {"scope": "table", "column": "amount", "max_null_ratio": 0}
+            check.is_active = True
+            dataset.batch_column = None
+            dataset.loaded_at_column = None
     finally:
         engine.dispose()
     print("Подготовлены dq_demo.orders (10 строк) и проверка " + NAME)
