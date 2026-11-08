@@ -4,8 +4,17 @@ import os
 from functools import lru_cache
 
 from dotenv import dotenv_values
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
+
+
+class ConnectionRoute(BaseModel):
+    """Переадресация того же источника внутри Docker, без изменения его метаданных."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    host: str = Field(min_length=1)
+    port: int = Field(ge=1, le=65535)
 
 
 class Settings(BaseSettings):
@@ -24,6 +33,9 @@ class Settings(BaseSettings):
 
     # Предельное время одного запроса проверки: тяжёлый или зависший запрос не подвесит прогон
     check_statement_timeout_sec: int = 60
+    connection_overrides: dict[str, ConnectionRoute] = Field(
+        default_factory=dict, validation_alias="DQ_CONNECTION_OVERRIDES"
+    )
 
     def _url(self, database: str) -> URL:
         # URL.create сам экранирует спецсимволы в пароле

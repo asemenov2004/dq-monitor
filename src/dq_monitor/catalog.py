@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from dq_monitor.checks import create_check
 from dq_monitor.errors import error_text
 from dq_monitor.meta.models import SEVERITIES, Connection, Dataset, DqCheck
+from dq_monitor.scheduling import validate_schedule
 
 
 class CheckSpec(BaseModel):
@@ -78,6 +79,7 @@ def parse_catalog(text: str) -> CatalogFile:
             problems.append(f"{spec.name}: severity должна быть одной из {SEVERITIES}")
         try:
             create_check(spec.type, spec.params)
+            validate_schedule(spec.schedule)
         except (ValueError, ValidationError) as exc:
             problems.append(f"{spec.name}: {error_text(exc)}")
     if problems:

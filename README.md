@@ -106,6 +106,21 @@ python -m dq_stand cycle --days 30
 
 Масштаб данных и начальная дата задаются в `.env` (`STAND_SCALE_FACTOR`, `STAND_START_DATE`).
 
+## Расписание: Airflow
+
+```bash
+docker compose -f compose.yaml -f compose.airflow.yaml up -d --build
+```
+
+UI: http://localhost:8081, пользователь `admin`, пароль из `AIRFLOW_ADMIN_PASSWORD`
+(по умолчанию `airflow_local_password`). DAG `dq_monitor_checks` изначально на паузе.
+Автоматический тик раз в минуту выполняет наступившие проверки из `meta` по cron в UTC.
+Ручной Trigger выполняет все активные проверки и не сдвигает расписание. На модельных
+данных для ручного запуска задаётся параметр `logical_now` из `dq_stand status`.
+
+Тот же выбор расписаний доступен без Airflow: `python -m dq_monitor run --due`.
+Шпаргалка запуска, демонстрация и устройство: [docs/airflow.md](docs/airflow.md).
+
 ## Разработка
 
 ```bash

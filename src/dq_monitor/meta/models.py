@@ -165,6 +165,7 @@ class CheckResult(Base):
     __tablename__ = "check_result"
     __table_args__ = (
         UniqueConstraint("run_id", "check_id"),
+        UniqueConstraint("check_id", "scheduled_for"),
         CheckConstraint(one_of("status", RESULT_STATUSES), name="status"),
         Index(None, "check_id"),
     )
@@ -181,6 +182,8 @@ class CheckResult(Base):
     # У старых результатов версии нет: они не используются для обучения детектора
     config_hash: Mapped[str | None] = mapped_column(String(64))
     details: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
+    # Реальный UTC-интервал cron. У ручного запуска NULL: он не сдвигает расписание.
+    scheduled_for: Mapped[datetime | None]
 
     run: Mapped[Run] = relationship(back_populates="results")
     check: Mapped[DqCheck] = relationship(back_populates="results")

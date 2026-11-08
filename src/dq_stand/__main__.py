@@ -8,6 +8,7 @@ from sqlalchemy import inspect
 from sqlalchemy.exc import OperationalError
 
 from dq_monitor.config import get_settings
+from dq_monitor.coordination import RunInProgressError
 from dq_monitor.db import meta_engine, warehouse_engine
 from dq_monitor.report import format_run, summary_line
 from dq_monitor.runner import run_checks
@@ -108,6 +109,9 @@ def main() -> int:
     args = parser.parse_args()
     try:
         return run(args)
+    except RunInProgressError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
     except OperationalError as exc:
         first_line = str(exc.orig).splitlines()[0]
         print(f"Нет подключения к базе: {first_line}", file=sys.stderr)
