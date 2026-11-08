@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from time import perf_counter
 
+from sqlalchemy import Connection as SQLConnection
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session, joinedload
 
@@ -24,6 +25,7 @@ from dq_monitor.anomalies.history import fingerprint, load_history
 from dq_monitor.checks import ERROR, FAIL, PASS, SKIP, CheckContext, Outcome, create_check
 from dq_monitor.config import get_settings
 from dq_monitor.connectors import Connector, connector_for
+from dq_monitor.coordination import run_lock
 from dq_monitor.errors import error_text
 from dq_monitor.meta.models import CheckResult, Dataset, DqCheck, Incident, Run
 
@@ -81,13 +83,34 @@ def run_checks(
     statement_timeout_sec: int | None = None,
 ) -> RunReport:
     """Выполняет активные проверки (или только перечисленные) и возвращает отчёт."""
+    with run_lock(meta_engine) as connection:
+        return _run_checks_locked(
+            meta_engine,
+            logical_now,
+            trigger,
+            check_ids,
+            statement_timeout_sec,
+            metadata_connection=connection,
+        )
+
+
+def _run_checks_locked(
+    meta_engine: Engine,
+    logical_now: datetime,
+    trigger: str = "manual",
+    check_ids: Iterable[int] | None = None,
+    statement_timeout_sec: int | None = None,
+    scheduled_slots: dict[int, datetime] | None = None,
+    metadata_connection: SQLConnection | None = None,
+) -> RunReport:
+    """Внутренний прогон: вызывающий удерживает общую блокировку."""
     logical_now = as_aware_utc(logical_now)
     timeout = statement_timeout_sec or get_settings().check_statement_timeout_sec
     connectors: dict[int, Connector] = {}
     items: list[ResultItem] = []
 
     # expire_on_commit=False: после фиксации объекты остаются доступны для чтения
-    with Session(meta_engine, expire_on_commit=False) as session:
+    with Session(metadata_connection or meta_engine, expire_on_commit=False) as session:
         run = Run(logical_now=logical_now, trigger=trigger, started_at=datetime.now(UTC))
         session.add(run)
         session.commit()
@@ -118,6 +141,7 @@ def run_checks(
                     duration_ms=duration_ms,
                     config_hash=config_hash,
                     details=outcome.details,
+                    scheduled_for=(scheduled_slots or {}).get(check.id),
                 )
                 session.add(result)
                 session.flush()  # нужен id результата для инцидента

@@ -1,0 +1,14 @@
+# В образ передаются только пакет, DAG и файлы сборки.
+**
+!pyproject.toml
+!README.md
+!LICENSE
+!src/
+!src/**
+!dags/
+!dags/**
+!docker/
+!docker/airflow/
+!docker/airflow/**
+**/__pycache__
+**/*.egg-info

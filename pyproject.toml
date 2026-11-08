@@ -17,6 +17,7 @@ dependencies = [
     "alembic>=1.13",
     "python-dotenv>=1.0",
     "pyyaml>=6.0",
+    "croniter>=6.2,<7",
 ]
 
 [project.optional-dependencies]

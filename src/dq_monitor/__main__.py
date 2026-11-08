@@ -14,10 +14,12 @@ from dq_monitor.catalog import CatalogError, load_catalog
 from dq_monitor.checks import CheckContext, create_check
 from dq_monitor.config import get_settings
 from dq_monitor.connectors import connector_for
+from dq_monitor.coordination import RunInProgressError
 from dq_monitor.db import meta_engine, server_version, warehouse_engine
 from dq_monitor.meta.models import Dataset, DqCheck, Incident
 from dq_monitor.report import format_run, format_table
 from dq_monitor.runner import as_aware_utc, run_checks
+from dq_monitor.scheduling import run_due_checks
 
 
 def cmd_ping() -> int:
@@ -32,8 +34,15 @@ def cmd_ping() -> int:
     return 0 if ok else 1
 
 
-def cmd_run(now: datetime | None, check_ids: list[int] | None) -> int:
-    report = run_checks(meta_engine(), now or datetime.now(UTC), check_ids=check_ids)
+def cmd_run(now: datetime | None, check_ids: list[int] | None, due: bool = False) -> int:
+    report = (
+        run_due_checks(meta_engine(), logical_now=now)
+        if due
+        else run_checks(meta_engine(), now or datetime.now(UTC), check_ids=check_ids)
+    )
+    if report is None:
+        print("Нет проверок, которым наступило время")
+        return 0
     print(format_run(report))
     return 0 if report.ok else 1
 
@@ -131,6 +140,7 @@ def main() -> int:
     )
     p_run.add_argument("--now", type=parse_now, help="логическое время, например 2025-01-31T02:00")
     p_run.add_argument("--check", type=int, action="append", help="только эта проверка (ID)")
+    p_run.add_argument("--due", action="store_true", help="только наступившие по расписанию")
 
     p_checks = sub.add_parser("checks", help="набор проверок")
     checks_sub = p_checks.add_subparsers(dest="checks_command", required=True)
@@ -142,8 +152,13 @@ def main() -> int:
     p_sql.add_argument("--now", type=parse_now, help="логическое время")
 
     args = parser.parse_args()
+    if args.command == "run" and args.due and args.check:
+        parser.error("--due и --check нельзя использовать одновременно")
     try:
         return dispatch(args)
+    except (RunInProgressError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
     except OperationalError as exc:
         first_line = str(exc.orig).splitlines()[0]
         print(f"Нет подключения к базе: {first_line}", file=sys.stderr)
@@ -155,7 +170,7 @@ def dispatch(args: argparse.Namespace) -> int:
     if args.command == "ping":
         return cmd_ping()
     if args.command == "run":
-        return cmd_run(args.now, args.check)
+        return cmd_run(args.now, args.check, args.due)
     if args.command == "checks":
         if args.checks_command == "load":
             return cmd_checks_load(args.path)
