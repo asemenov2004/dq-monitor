@@ -12,5 +12,7 @@
 !docker/airflow/**
 !docker/web/
 !docker/web/**
+!docker/messaging/
+!docker/messaging/**
 **/__pycache__
 **/*.egg-info

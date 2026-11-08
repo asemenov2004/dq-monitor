@@ -218,15 +218,21 @@ def update_incident(
     Ошибка выполнения (error) инцидент не меняет: про качество данных она ничего не говорит.
     Время открытия и закрытия логическое, чтобы задержки считались в модельном времени.
     """
+    from dq_monitor.notifications.outbox import queue_event
+
     incident = session.scalar(
         select(Incident).where(Incident.check_id == check_id, Incident.state == "open")
     )
     if result.status == FAIL and incident is None:
-        session.add(Incident(check_id=check_id, opened_result_id=result.id, opened_at=logical_now))
+        incident = Incident(check_id=check_id, opened_result_id=result.id, opened_at=logical_now)
+        session.add(incident)
+        session.flush()
+        queue_event(session, incident, "opened", result)
         return "opened"
     if result.status == PASS and incident is not None:
         incident.state = "closed"
         incident.closed_result_id = result.id
         incident.closed_at = logical_now
+        queue_event(session, incident, "closed", result)
         return "closed"
     return None

@@ -20,7 +20,15 @@ from dq_monitor.config import Settings, get_settings
 from dq_monitor.connectors import connector_for
 from dq_monitor.coordination import RunInProgressError
 from dq_monitor.errors import error_text
-from dq_monitor.meta.models import CheckResult, Connection, Dataset, DqCheck, Incident, Run
+from dq_monitor.meta.models import (
+    CheckResult,
+    Connection,
+    Dataset,
+    DqCheck,
+    Incident,
+    Notification,
+    Run,
+)
 from dq_monitor.report import format_value
 from dq_monitor.runner import as_aware_utc, run_checks
 from dq_monitor.web.charts import metric_chart
@@ -352,6 +360,30 @@ def create_app(engine: Engine | None = None, settings: Settings | None = None) -
                 incidents=rows[:30],
                 more=len(rows) > 30,
                 state=state,
+                page_number=page_number,
+            )
+
+    @app.get("/notifications")
+    def notifications_list(
+        request: Request, status: str = "all", page_number: int = Query(1, ge=1)
+    ):
+        if status not in ("all", "pending", "sent", "failed"):
+            raise HTTPException(400, "Неизвестный статус доставки")
+        with Session(engine) as session:
+            query = (
+                select(Notification)
+                .options(joinedload(Notification.incident).joinedload(Incident.check))
+                .order_by(Notification.id.desc())
+            )
+            if status != "all":
+                query = query.where(Notification.status == status)
+            rows = session.scalars(query.offset((page_number - 1) * 30).limit(31)).all()
+            return page(
+                request,
+                "notifications.html",
+                notifications=rows[:30],
+                more=len(rows) > 30,
+                status=status,
                 page_number=page_number,
             )
 

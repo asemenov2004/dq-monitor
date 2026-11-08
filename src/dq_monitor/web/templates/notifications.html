@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Уведомления · dq-monitor{% endblock %}
+{% block content %}
+<header class="page-heading"><div><p class="eyebrow">ДОСТАВКА СОБЫТИЙ</p><h1>Уведомления</h1>
+<p class="muted">Открытие и закрытие инцидента ставят по одному сообщению в каждый канал.</p></div></header>
+<form method="get" class="filters"><label>Доставка<select name="status">
+{% for key,label in [('all','Все'),('pending','Ожидает'),('sent','Отправлено'),('failed','Ошибка')] %}
+<option value="{{key}}" {% if key==status %}selected{% endif %}>{{label}}</option>{% endfor %}
+</select></label><button class="secondary">Применить</button></form>
+<section class="panel"><div class="table-wrap"><table>
+<thead><tr><th>Событие</th><th>Канал</th><th>Проверка</th><th>Доставка</th><th>Попытки</th><th>Время и ошибка</th></tr></thead>
+<tbody>{% for n in notifications %}<tr>
+<td>#{{n.id}} · инцидент #{{n.incident_id}}<small>{{'Открыт' if n.event=='opened' else 'Закрыт'}}</small></td>
+<td>{{'Почта' if n.channel=='email' else 'Mattermost' if n.channel=='mattermost' else n.channel}}</td>
+<td><a href="/checks/{{n.incident.check_id}}">{{n.incident.check.name}}</a></td>
+<td>{{{'pending':'Ожидает','sent':'Отправлено','failed':'Ошибка'}[n.status]}}</td>
+<td>{{n.attempts}}</td><td>
+<small>Создано: {{n.created_at|utc}}</small>
+{% if n.sent_at %}<small>Отправлено: {{n.sent_at|utc}}</small>{% endif %}
+{% if n.next_attempt_at %}<small>Готово к попытке с: {{n.next_attempt_at|utc}}</small>{% endif %}
+{% if n.error %}<span class="error-text">{{n.error}}</span>{% endif %}
+</td></tr>{% else %}<tr><td colspan="6" class="empty">Сообщений с таким статусом нет.</td></tr>{% endfor %}
+</tbody></table></div></section>
+<p class="hint">Доставка выполняется отдельным worker. При выключенном worker сообщения остаются в очереди.
+Закрытие ждёт успешной доставки открытия в том же канале, если оно было поставлено в очередь.
+Для старых инцидентов без такого сообщения закрытие доставляется самостоятельно. После исчерпания попыток сообщение остаётся
+в журнале с ошибкой. Время доставки — реальное UTC; время инцидента — логическое.
+Локальная почта просматривается в Mailpit. Внешняя доставка требует SMTP-настроек.</p>
+<div class="actions">{% if page_number>1 %}<a href="?status={{status}}&page_number={{page_number-1}}">← Новее</a>{% endif %}
+{% if more %}<a href="?status={{status}}&page_number={{page_number+1}}">Старее →</a>{% endif %}</div>
+{% endblock %}

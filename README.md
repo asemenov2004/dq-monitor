@@ -133,6 +133,25 @@ docker compose -f compose.yaml -f compose.web.yaml up -d --build
 Подробности: [docs/web.md](docs/web.md). Требования MVP и договорённости с научным
 руководителем: [docs/mvp-requirements.md](docs/mvp-requirements.md).
 
+## Полный локальный MVP
+
+```bash
+python scripts/mvp.py up --airflow
+```
+
+Команда добавляет Mattermost, почтовый ящик Mailpit и worker уведомлений. Создаёт
+локальные секреты в `.env`, включает доставку; данные полигона сохраняются.
+Первичная подготовка TPC-H описана выше. Пошаговый показ с командами и ожидаемыми
+результатами: [docs/mvp-demo.md](docs/mvp-demo.md).
+
+Почта: http://localhost:8025. Mattermost: http://localhost:8065, пользователь `dqadmin`,
+пароль из `MATTERMOST_ADMIN_PASSWORD` в `.env`. Состояние доставки видно в приложении.
+Mailpit показывает реальные принятые SMTP-письма, внешняя почта в демо не используется.
+Устройство очереди и настройка SMTP: [docs/notifications.md](docs/notifications.md).
+Выбор мессенджера: [docs/messengers.md](docs/messengers.md).
+Фактическая реализация MVP, связь с требованиями и измерения для главы 2:
+[docs/mvp-implementation.md](docs/mvp-implementation.md).
+
 ## Разработка
 
 ```bash
