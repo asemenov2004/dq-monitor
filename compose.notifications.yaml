@@ -1,0 +1,85 @@
+# Запускать вместе с compose.yaml и compose.web.yaml через scripts/mvp.py.
+services:
+  messaging-db-init:
+    image: dq-monitor-app:local
+    env_file: .env
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+    command: ["python", "/opt/dq-monitor/docker/messaging/db.py"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      web-init:
+        condition: service_completed_successfully
+    restart: "no"
+
+  mattermost:
+    image: mattermost/mattermost-team-edition:11.7.15
+    environment:
+      MM_SQLSETTINGS_DRIVERNAME: postgres
+      MM_SQLSETTINGS_DATASOURCE: ${MATTERMOST_DB_DSN:?Запустите python scripts/mvp.py up}
+      MM_SERVICESETTINGS_SITEURL: http://localhost:${MATTERMOST_PORT:-8065}
+      MM_SERVICESETTINGS_ENABLEINCOMINGWEBHOOKS: "true"
+      MM_SERVICESETTINGS_ENABLEOUTGOINGWEBHOOKS: "false"
+      MM_EMAILSETTINGS_REQUIREEMAILVERIFICATION: "false"
+      MM_EMAILSETTINGS_SENDEMAILNOTIFICATIONS: "false"
+      MM_LOGSETTINGS_CONSOLELEVEL: ERROR
+      MM_PLUGINSETTINGS_ENABLEMARKETPLACE: "false"
+      MM_PLUGINSETTINGS_ENABLE: "false"
+      MM_LOGSETTINGS_ENABLEDIAGNOSTICS: "false"
+    ports:
+      - "127.0.0.1:${MATTERMOST_PORT:-8065}:8065"
+    volumes:
+      - mattermost-config:/mattermost/config
+      - mattermost-data:/mattermost/data
+      - mattermost-logs:/mattermost/logs
+      - mattermost-plugins:/mattermost/plugins
+      - mattermost-client-plugins:/mattermost/client/plugins
+      - mattermost-indexes:/mattermost/bleve-indexes
+    depends_on:
+      messaging-db-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    mem_limit: 1536m
+
+  mailpit:
+    image: axllent/mailpit:v1.33.1
+    environment:
+      MP_DATABASE: /data/mailpit.db
+    ports:
+      - "127.0.0.1:${MAILPIT_PORT:-8025}:8025"
+      - "127.0.0.1:${MAILPIT_SMTP_PORT:-1026}:1025"
+    volumes:
+      - mailpit-data:/data
+    restart: unless-stopped
+    mem_limit: 256m
+
+  notifications:
+    image: dq-monitor-app:local
+    env_file: .env
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      NOTIFY_SMTP_HOST: mailpit
+      NOTIFY_SMTP_PORT: "1025"
+      NOTIFY_MATTERMOST_WEBHOOK_URL: http://mattermost:8065/hooks/${MATTERMOST_WEBHOOK_ID:-unconfigured}
+    command: ["python", "-m", "dq_monitor.notifications.worker"]
+    depends_on:
+      web-init:
+        condition: service_completed_successfully
+      mattermost:
+        condition: service_started
+      mailpit:
+        condition: service_started
+    restart: unless-stopped
+    mem_limit: 256m
+
+volumes:
+  mattermost-config:
+  mattermost-data:
+  mattermost-logs:
+  mattermost-plugins:
+  mattermost-client-plugins:
+  mattermost-indexes:
+  mailpit-data:

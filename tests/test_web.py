@@ -276,3 +276,17 @@ def test_filters_and_missing_records(client):
     assert client.get("/checks/999").status_code == 404
     assert client.get("/runs/999").status_code == 404
     assert client.get("/runs?page_number=0").status_code == 422
+
+
+def test_notification_journal(client, web_engine):
+    with web_engine.begin() as c:
+        c.execute(text("DELETE FROM dwh.orders"))
+    response = post(client, "/runs", {"logical_now": NOW})
+    assert "FAIL" in response.text
+    response = client.get("/notifications")
+    assert response.status_code == 200
+    assert "Почта" in response.text and "Mattermost" in response.text
+    assert "Ожидает" in response.text and "base_count" in response.text
+    assert client.get("/notifications?status=sent").status_code == 200
+    assert client.get("/notifications?status=bad").status_code == 400
+    assert client.get("/notifications?page_number=0").status_code == 422

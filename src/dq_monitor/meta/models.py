@@ -40,9 +40,9 @@ SEVERITIES = ("warning", "critical")
 RUN_TRIGGERS = ("manual", "schedule")
 RESULT_STATUSES = ("pass", "fail", "error", "skip")
 INCIDENT_STATES = ("open", "closed")
-NOTIFICATION_CHANNELS = ("telegram",)
+NOTIFICATION_CHANNELS = ("telegram", "email", "mattermost")
 NOTIFICATION_EVENTS = ("opened", "closed")
-NOTIFICATION_STATUSES = ("sent", "failed")
+NOTIFICATION_STATUSES = ("pending", "sent", "failed")
 
 
 def one_of(column: str, values: tuple[str, ...]) -> str:
@@ -231,17 +231,31 @@ class Notification(Base):
 
     __tablename__ = "notification"
     __table_args__ = (
+        Index(
+            "uq_notification_outbox_event",
+            "incident_id", "channel", "event",
+            unique=True,
+            postgresql_where=text("channel IN ('email', 'mattermost')"),
+        ),
         CheckConstraint(one_of("channel", NOTIFICATION_CHANNELS), name="channel"),
         CheckConstraint(one_of("event", NOTIFICATION_EVENTS), name="event"),
         CheckConstraint(one_of("status", NOTIFICATION_STATUSES), name="status"),
+        CheckConstraint("attempts >= 0", name="attempts"),
+        Index(None, "status", "next_attempt_at"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     incident_id: Mapped[int] = mapped_column(ForeignKey("incident.id", ondelete="RESTRICT"))
     channel: Mapped[str] = mapped_column(String(20))
     event: Mapped[str] = mapped_column(String(10))
-    status: Mapped[str] = mapped_column(String(10))
+    status: Mapped[str] = mapped_column(String(10), server_default="pending")
     error: Mapped[str | None] = mapped_column(Text)
-    sent_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    attempts: Mapped[int] = mapped_column(server_default=text("0"))
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    next_attempt_at: Mapped[datetime | None] = mapped_column(server_default=func.now())
+    last_attempt_at: Mapped[datetime | None]
+    # Снимок текста события: повторная доставка не читает изменённую проверку.
+    message: Mapped[str] = mapped_column(Text, server_default="")
+    sent_at: Mapped[datetime | None]
 
     incident: Mapped[Incident] = relationship(back_populates="notifications")

@@ -364,7 +364,7 @@ def test_migration_matches_models_and_guards_downgrade(fresh):
     with fresh.connect() as conn:
         assert (
             conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            == "c3f5b7d9e021"
+            == "e5b7d9f1a243"
         )
 
 
