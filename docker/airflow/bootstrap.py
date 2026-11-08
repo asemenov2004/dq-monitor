@@ -70,12 +70,14 @@ def initialize() -> None:
             conn.execute("CREATE DATABASE airflow OWNER airflow")
     configure()
     # Миграции приложения ставятся вместе с пакетом, конфиг проекта на диске не нужен.
-    from alembic import command
-    from alembic.config import Config
+    from dq_monitor.db import meta_engine
+    from dq_monitor.meta.migrate import upgrade
 
-    cfg = Config()
-    cfg.set_main_option("script_location", "dq_monitor.meta:migrations")
-    command.upgrade(cfg, "head")
+    engine = meta_engine()
+    try:
+        upgrade(engine)
+    finally:
+        engine.dispose()
     subprocess.run(["airflow", "db", "migrate"], check=True)
     print("Базы meta и airflow подготовлены", flush=True)
 

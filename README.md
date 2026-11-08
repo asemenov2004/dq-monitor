@@ -121,6 +121,18 @@ UI: http://localhost:8081, пользователь `admin`, пароль из `
 Тот же выбор расписаний доступен без Airflow: `python -m dq_monitor run --due`.
 Шпаргалка запуска, демонстрация и устройство: [docs/airflow.md](docs/airflow.md).
 
+## Веб-интерфейс
+
+```bash
+pip install -e '.[web,dev,stand]'
+docker compose -f compose.yaml -f compose.web.yaml up -d --build
+```
+
+Открыть http://localhost:8000: формы восьми типов проверок, ручной запуск, графики,
+история и инциденты. Для исторических данных нажать «Время полигона» перед запуском.
+Подробности: [docs/web.md](docs/web.md). Требования MVP и договорённости с научным
+руководителем: [docs/mvp-requirements.md](docs/mvp-requirements.md).
+
 ## Разработка
 
 ```bash

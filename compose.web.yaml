@@ -1,0 +1,36 @@
+x-web-common: &web-common
+  image: dq-monitor-app:local
+  build:
+    context: .
+    dockerfile: docker/web/Dockerfile
+  env_file: .env
+  environment:
+    POSTGRES_HOST: postgres
+    POSTGRES_PORT: "5432"
+    DQ_CONNECTION_OVERRIDES: '{"tpch_warehouse":{"host":"postgres","port":5432}}'
+
+services:
+  web-init:
+    <<: *web-common
+    command: ["python", "-m", "dq_monitor.meta.migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    <<: *web-common
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      web-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    mem_limit: 512m
