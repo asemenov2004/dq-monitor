@@ -1,0 +1,19 @@
+{% extends 'base.html' %}{% block title %}{{'Изменение' if check else 'Создание'}} проверки · dq-monitor{% endblock %}{% block content %}
+<header class="page-heading"><div><p class="eyebrow">НАСТРОЙКА ПРАВИЛА</p><h1>{{'Изменить проверку' if check else 'Новая проверка'}}</h1></div><a href="/checks">К списку →</a></header>
+{% if error %}<div class="error-box" role="alert">{{error}}</div>{% endif %}
+{% if not datasets %}<div class="notice">Сначала <a href="/sources">зарегистрируйте подключение и таблицу</a>.</div>{% else %}
+<form method="post" class="editor"><input type="hidden" name="csrf" value="{{csrf}}"><section class="panel"><h2>Основные настройки</h2><div class="form-grid">
+<label>Имя проверки<input name="name" maxlength="200" required value="{{form.get('name',check.name if check else '')}}"></label>
+<label>Таблица<select name="dataset_id" required>{% for d in datasets %}<option value="{{d.id}}" {% if (form.get('dataset_id','')|string)==(d.id|string) or (not form and check and check.dataset_id==d.id) %}selected{% endif %}>{{d.connection.name}} / {{d.schema_name}}.{{d.table_name}}</option>{% endfor %}</select></label>
+<label>Тип проверки<select name="check_type" id="check-type">{% for key,label in labels.items() %}<option value="{{key}}" {% if selected==key %}selected{% endif %}>{{label}}</option>{% endfor %}</select></label>
+<label>Важность<select name="severity">{% for s in ['critical','warning'] %}<option value="{{s}}" {% if form.get('severity',check.severity if check else 'critical')==s %}selected{% endif %}>{{'Критическая' if s=='critical' else 'Предупреждение'}}</option>{% endfor %}</select></label>
+<label>Расписание cron, UTC<input name="schedule" maxlength="100" placeholder="0 2 * * *" value="{{form.get('schedule',check.schedule or '' if check else '')}}"><small>Пять полей; пусто — каждый тик планировщика.</small></label>
+<label class="check-label"><input type="checkbox" name="is_active" {% if (form and form.get('is_active')=='on') or (not form and (not check or check.is_active)) %}checked{% endif %}> Проверка включена</label></div>
+<label>Описание<textarea name="description" maxlength="4000" rows="2">{{form.get('description',check.description or '' if check else '')}}</textarea></label></section>
+<section class="panel"><h2>Параметры проверки</h2><p class="hint">Параметры проверяет та же модель, что используется ядром и загрузкой YAML. Пустые необязательные поля не задаются.</p>
+{% for kind,fields in groups.items() %}<fieldset data-check-kind="{{kind}}" {% if kind!=selected %}hidden disabled{% endif %}><legend>{{labels[kind]}}</legend><div class="form-grid">{% for field in fields %}<label {% if field.textarea %}class="wide"{% endif %}>{{field.label}}{% if field.required %} *{% endif %}
+{% if field.options %}<select name="p_{{field.name}}" {% if field.required %}required{% endif %}>{% for opt in field.options %}<option value="{{opt}}" {% if opt==field.value %}selected{% endif %}>{{opt}}</option>{% endfor %}</select>
+{% elif field.textarea %}<textarea name="p_{{field.name}}" rows="{{6 if field.name=='sql' else 2}}" {% if field.required %}required{% endif %}>{{field.value}}</textarea>
+{% else %}<input name="p_{{field.name}}" value="{{field.value}}" {% if field.required %}required{% endif %}>
+{% endif %}</label>{% endfor %}</div>{% if kind=='anomaly' %}<p class="hint">Первые дни дают SKIP разогрева. Окно состоит из предыдущих календарных дней UTC; изменение параметров отделяет историю новой конфигурации.</p>{% elif kind=='custom_sql' %}<p class="hint">Запрос возвращает одно число. Доступны :batch_date и :logical_now. SQL не выполняется при сохранении формы.</p>{% endif %}</fieldset>{% endfor %}</section>
+<div class="actions"><button type="submit">Сохранить проверку</button><a href="/checks" class="button secondary">Отмена</a></div></form>{% endif %}{% endblock %}
