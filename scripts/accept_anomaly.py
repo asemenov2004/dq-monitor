@@ -54,6 +54,14 @@ def main():
                 s.add(check)
                 s.flush()
             check.is_active = True
+            check.check_type = "anomaly"
+            check.params = {
+                "scope": "table",
+                "metric": "mean",
+                "column": "amount",
+                "window": 7,
+                "threshold": 3,
+            }
             check_id = check.id
         # Каждое повторение начинает демонстрацию после ранее сохранённой истории.
         with Session(engine) as s:
